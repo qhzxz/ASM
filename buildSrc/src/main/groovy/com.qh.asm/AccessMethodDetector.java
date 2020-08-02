@@ -19,33 +19,47 @@ import java.util.List;
 class AccessMethodDetector {
 
 
-    ClassContext detect(String filePath) {
+    ClassContext detect(String filePath) throws IOException {
         File file = new File(filePath);
         if (file.exists()) return null;
-        FileInputStream inputStream = null;
-        try {
-            inputStream = new FileInputStream(file);
-            byte[] bytes = IOUtils.toByteArray(inputStream);
-            ClassReader reader = new ClassReader(bytes);
-            ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);
-            AccessClassVisitor visitor = new AccessClassVisitor(writer);
-            reader.accept(visitor, ClassReader.EXPAND_FRAMES);
-            Class clz = new Class(reader.getAccess(), reader.getClassName(), reader.getSuperName(), reader.getInterfaces());
-            Node node = new Node(clz);
-            ClassContext classContext = new ClassContext(bytes, filePath, node);
-            return classContext;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        } finally {
-            IOUtils.closeQuietly(inputStream);
+        FileInputStream inputStream = new FileInputStream(file);
+        byte[] bytes = IOUtils.toByteArray(inputStream);
+        ClassReader reader = new ClassReader(bytes);
+        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);
+        AccessClassVisitor visitor = new AccessClassVisitor(writer);
+        reader.accept(visitor, ClassReader.EXPAND_FRAMES);
+        Class clz = new Class(reader.getAccess(), reader.getClassName(), reader.getSuperName(), reader.getInterfaces());
+        Node node = new Node(clz);
+        ClassContext classContext = new ClassContext(bytes, filePath, node);
+        List<AccessMethodVisitor> mMethodVisitorList = visitor.mMethodVisitorList;
+        for (AccessMethodVisitor methodVisitor : mMethodVisitorList) {
+            AccessType accessType = methodVisitor.getAccessType();
+            if (accessType == AccessType.NONE) {
+                System.out.println("method:" + methodVisitor.mMethod.toString() + " access type unknown");
+            } else {
+                String targetSignature = methodVisitor.getTargetSignature();
+                Object target = visitor.mPrivateTarget.get(targetSignature);
+                if (target != null) {
+                    AccessMethod accessMethod = new AccessMethod(methodVisitor.mMethod, targetSignature, target, accessType);
+                    classContext.accessMethodMap.put(accessMethod.accessMethod.getSignature(), accessMethod);
+                    classContext.targetSignatureSet.add(targetSignature);
+                } else {
+                    System.out.println("method:" + methodVisitor.mMethod.toString() + " target not found");
+                }
+            }
         }
+        classContext.packageVisibleMethodSet.addAll(visitor.mPackageVisibleMethodSet);
+        IOUtils.closeQuietly(inputStream);
+        return classContext;
+
+
     }
 
     private class AccessClassVisitor extends ClassVisitor implements Opcodes {
         private HashMap<String, Object> mPrivateTarget = new HashMap<>();
         private List<AccessMethodVisitor> mMethodVisitorList = new ArrayList<>();
         private List<String> mPackageVisibleMethodSet = new ArrayList<>();
+        private String className;
 
         public AccessClassVisitor(ClassVisitor visitor) {
             super(Opcodes.ASM6, visitor);
@@ -54,12 +68,13 @@ class AccessMethodDetector {
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
             super.visit(version, access, name, signature, superName, interfaces);
+            className = name;
         }
 
         @Override
         public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
             if (Utils.isContainPrivateAccessFlag(access)) {
-                Field field = new Field(access, name, descriptor, signature, value);
+                Field field = new Field(className, access, name, descriptor, signature, value);
                 mPrivateTarget.put(field.name, field);
             }
 
@@ -68,7 +83,7 @@ class AccessMethodDetector {
 
         @Override
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-            Method method = new Method(access, name, descriptor, signature, exceptions);
+            Method method = new Method(className, access, name, descriptor, signature, exceptions);
             boolean containPrivate = Utils.isContainPrivateAccessFlag(access);
             boolean containStatic = Utils.isContainStaticAccessFlag(access);
             boolean containSynthetic = Utils.isContainSyntheticFlag(access);

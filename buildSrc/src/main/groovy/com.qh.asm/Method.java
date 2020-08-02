@@ -4,29 +4,21 @@ import java.util.Arrays;
 import java.util.Objects;
 
 class Method {
+    final String owner;
     final int access;
     final String name;
     final String descriptor;
     final String signature;
     final String[] exceptions;
 
-    public Method(int access, String name, String descriptor, String signature, String[] exceptions) {
+
+    public Method(String owner, int access, String name, String descriptor, String signature, String[] exceptions) {
+        this.owner = owner;
         this.access = access;
         this.name = name;
         this.descriptor = descriptor;
         this.signature = name + descriptor;
         this.exceptions = exceptions;
-    }
-
-    @Override
-    public String toString() {
-        return "Method{" +
-                "access=" + access +
-                ", name='" + name + '\'' +
-                ", descriptor='" + descriptor + '\'' +
-                ", signature='" + signature + '\'' +
-                ", exceptions=" + Arrays.toString(exceptions) +
-                '}';
     }
 
     public String getReturnType() {
@@ -46,6 +38,7 @@ class Method {
         if (o == null || getClass() != o.getClass()) return false;
         Method method = (Method) o;
         return access == method.access &&
+                Objects.equals(owner, method.owner) &&
                 Objects.equals(name, method.name) &&
                 Objects.equals(descriptor, method.descriptor) &&
                 Objects.equals(signature, method.signature) &&
@@ -54,7 +47,7 @@ class Method {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(access, name, descriptor, signature);
+        int result = Objects.hash(owner, access, name, descriptor, signature);
         result = 31 * result + Arrays.hashCode(exceptions);
         return result;
     }
