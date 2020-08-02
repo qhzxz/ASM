@@ -41,4 +41,16 @@ class Field {
     public int hashCode() {
         return Objects.hash(owner, access, name, descriptor, signature, value);
     }
+
+    @Override
+    public String toString() {
+        return "Field{" +
+                "owner='" + owner + '\'' +
+                ", access=" + access +
+                ", name='" + name + '\'' +
+                ", descriptor='" + descriptor + '\'' +
+                ", signature='" + signature + '\'' +
+                ", value=" + value +
+                '}';
+    }
 }

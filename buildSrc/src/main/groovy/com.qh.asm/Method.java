@@ -51,4 +51,16 @@ class Method {
         result = 31 * result + Arrays.hashCode(exceptions);
         return result;
     }
+
+    @Override
+    public String toString() {
+        return "Method{" +
+                "owner='" + owner + '\'' +
+                ", access=" + access +
+                ", name='" + name + '\'' +
+                ", descriptor='" + descriptor + '\'' +
+                ", signature='" + signature + '\'' +
+                ", exceptions=" + Arrays.toString(exceptions) +
+                '}';
+    }
 }

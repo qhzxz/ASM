@@ -10,12 +10,14 @@ class ClassContext {
     final HashSet<String> packageVisibleMethodSet;
     final String dstPath;
     final Node node;
+    final boolean isInJar;
 
     final Map<String, AccessMethod> accessMethodMap;
     final Set<String> targetSignatureSet;
 
 
-    ClassContext(byte[] data, String dstPath, Node node) {
+    ClassContext(byte[] data, String dstPath, Node node, boolean isInJar) {
+        this.isInJar = isInJar;
         this.data = data;
         this.dstPath = dstPath;
         this.node = node;

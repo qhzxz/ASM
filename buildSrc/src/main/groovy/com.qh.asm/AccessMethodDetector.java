@@ -11,26 +11,40 @@ import org.objectweb.asm.Opcodes;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
 
 class AccessMethodDetector {
 
 
-    ClassContext detect(String filePath) throws IOException {
+    ClassContext detectClass(String filePath) throws IOException {
         File file = new File(filePath);
-        if (file.exists()) return null;
         FileInputStream inputStream = new FileInputStream(file);
         byte[] bytes = IOUtils.toByteArray(inputStream);
-        ClassReader reader = new ClassReader(bytes);
+        ClassContext detect = detect(bytes, filePath, false);
+        IOUtils.closeQuietly(inputStream);
+        return detect;
+    }
+
+
+    private ClassContext detect(byte[] data, String path, boolean isJar) {
+        ClassReader reader = new ClassReader(data);
         ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);
         AccessClassVisitor visitor = new AccessClassVisitor(writer);
         reader.accept(visitor, ClassReader.EXPAND_FRAMES);
         Class clz = new Class(reader.getAccess(), reader.getClassName(), reader.getSuperName(), reader.getInterfaces());
         Node node = new Node(clz);
-        ClassContext classContext = new ClassContext(bytes, filePath, node);
+        ClassContext classContext = new ClassContext(data, path, node, isJar);
         List<AccessMethodVisitor> mMethodVisitorList = visitor.mMethodVisitorList;
         for (AccessMethodVisitor methodVisitor : mMethodVisitorList) {
             AccessType accessType = methodVisitor.getAccessType();
@@ -49,10 +63,28 @@ class AccessMethodDetector {
             }
         }
         classContext.packageVisibleMethodSet.addAll(visitor.mPackageVisibleMethodSet);
-        IOUtils.closeQuietly(inputStream);
         return classContext;
+    }
 
 
+    Map<String, ClassContext> detectJar(String jarFilePath) throws IOException {
+        File dstFile = new File(jarFilePath);
+        JarFile jarFile = new JarFile(dstFile);
+        Map<String, ClassContext> res = new HashMap<>();
+        Enumeration<JarEntry> entries = jarFile.entries();
+        while (entries.hasMoreElements()) {
+            JarEntry jarEntry = entries.nextElement();
+            String name = jarEntry.getName();
+            if (name.endsWith(".class")) {
+                InputStream inputStream = jarFile.getInputStream(jarEntry);
+                byte[] bytes = IOUtils.toByteArray(inputStream);
+                ClassContext detect = detect(bytes, jarFilePath, true);
+                res.put(name, detect);
+                IOUtils.closeQuietly(inputStream);
+            }
+        }
+        IOUtils.closeQuietly(jarFile);
+        return res;
     }
 
     private class AccessClassVisitor extends ClassVisitor implements Opcodes {
